@@ -25612,7 +25612,7 @@ msgstr "Ignorer les comptes"
 #: gnucash/report/reports/standard/trial-balance.scm:374
 msgid "${company-name} ${report-title} For Period Covering ${start} to ${end}"
 msgstr ""
-"${report-title} de ${company-name} pour la période allant du ${start} au "
+"${report-title} pour la période allant du ${start} au "
 "${end}"
 
 # messages-i18n.c:165 po/guile_strings.txt:7
