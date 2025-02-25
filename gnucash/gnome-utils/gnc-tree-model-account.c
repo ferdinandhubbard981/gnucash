@@ -423,7 +423,7 @@ gnc_tree_model_account_get_iter (GtkTreeModel *tree_model,
 
     {
         gchar *path_string = gtk_tree_path_to_string (path);
-        ENTER("model %p, iter %p, path %s", tree_model, iter, path_string);
+        PWARN("model %p, iter %p, path %s", tree_model, iter, path_string);
         g_free (path_string);
     }
 

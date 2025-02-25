@@ -1533,7 +1533,7 @@ xaccAccountCommitEdit (Account *acc)
         /* First, recursively free children */
         xaccFreeAccountChildren(acc);
 
-        PINFO ("freeing splits for account %p (%s)",
+        PWARN("freeing splits for account %p (%s)",
                acc, priv->accountName ? priv->accountName : "(null)");
 
         book = qof_instance_get_book(acc);
@@ -2880,6 +2880,7 @@ gnc_account_remove_child (Account *parent, Account *child)
     cpriv->parent = nullptr;
 
     qof_event_gen (&parent->inst, QOF_EVENT_MODIFY, nullptr);
+    PWARN("finished executing gnc_account_remove_child");
 }
 
 Account *
