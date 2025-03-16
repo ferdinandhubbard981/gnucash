@@ -24,6 +24,9 @@
 #include <cstdint>
 #include "../gnc-numeric.hpp"
 #include "../gnc-rational.hpp"
+#ifdef __APPLE__
+#include <sys/sysctl.h>
+#endif
 
 TEST(gncnumeric_constructors, test_default_constructor)
 {
@@ -141,6 +144,10 @@ TEST(gncnumeric_constructors, test_string_constructor)
     GncNumeric neg_simple_decimal("-123.456");
     EXPECT_EQ(-123456, neg_simple_decimal.num());
     EXPECT_EQ(1000, neg_simple_decimal.denom());
+    ASSERT_NO_THROW(GncNumeric thousep_decimal("123,456,789.123"));
+    GncNumeric thousep_decimal("123,456,789.123");
+    EXPECT_EQ(123456789123, thousep_decimal.num());
+    EXPECT_EQ(1000, thousep_decimal.denom());
     ASSERT_NO_THROW(GncNumeric continental_decimal("123,456"));
     GncNumeric continental_decimal("123,456");
     EXPECT_EQ(123456, continental_decimal.num());
@@ -149,6 +156,10 @@ TEST(gncnumeric_constructors, test_string_constructor)
     GncNumeric neg_continental_decimal("-123,456");
     EXPECT_EQ(-123456, neg_continental_decimal.num());
     EXPECT_EQ(1000, neg_continental_decimal.denom());
+    ASSERT_NO_THROW(GncNumeric swiss_thousep_decimal("123""\xe2\x80\xaf""456""\xe2\x80\xaf""789,123"));
+    GncNumeric swiss_thousep_decimal("123""\xe2\x80\xaf""456""\xe2\x80\xaf""789,123");
+    EXPECT_EQ(123456789123, swiss_thousep_decimal.num());
+    EXPECT_EQ(1000, swiss_thousep_decimal.denom());
     GncNumeric from_scientific("1.234e4");
     EXPECT_EQ(12340, from_scientific.num());
     EXPECT_EQ(1, from_scientific.denom());
@@ -247,6 +258,23 @@ TEST(gncnumeric_output, string_output)
     EXPECT_EQ("-123/456", neg_rational_string.to_string());
 }
 
+#ifdef __APPLE__
+static float
+get_macos_version()
+{
+    int major, minor, micro;
+    float rv{};
+    char vstr[64];
+    size_t len = sizeof(vstr);
+    auto err = sysctlbyname("kern.osrelease", vstr, &len, nullptr, 0);
+    if (err)
+        return rv;
+    sscanf(vstr, "%d.%d.%d", &major, &minor, &micro);
+    rv = major + minor / 100.0 + micro / 10000.0;
+    return rv;
+}
+#endif
+
 TEST(gncnumeric_stream, output_stream)
 {
     std::ostringstream output;
@@ -278,6 +306,12 @@ TEST(gncnumeric_stream, output_stream)
         output.imbue(std::locale("fr_FR"));
         output.str("");
         output << simple_int;
+// Apple fixed this in macOS 15.4 to include the separator.
+#ifdef __APPLE__
+        if (get_macos_version() >= 24.04)
+            EXPECT_EQ("123\xe2\x80\xaf""456", output.str());
+        else
+#endif
         EXPECT_EQ("123456", output.str());
     }
     output.str("");

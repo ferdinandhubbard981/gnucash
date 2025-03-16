@@ -868,8 +868,7 @@ gnc_tax_info_update_accounts (TaxInfoDialog *ti_dialog)
     num_accounts = gtk_tree_selection_count_selected_rows (selection);
 
     label = ti_dialog->num_acct_label;
-
-    string = g_strdup_printf ("%d", num_accounts);
+    string = g_strdup_printf (_("Accounts Selected: %d"), num_accounts);
     gtk_label_set_text (GTK_LABEL (label), string);
     g_free (string);
 
@@ -1510,7 +1509,7 @@ gnc_tax_info_dialog_create (GtkWidget * parent, TaxInfoDialog *ti_dialog)
     if (gnc_prefs_get_bool(GNC_PREFS_GROUP_GENERAL, GNC_PREF_SAVE_GEOMETRY))
     {
         GObject *object = gtk_builder_get_object (builder, "paned");
-        gnc_prefs_bind (GNC_PREFS_GROUP, GNC_PREF_PANED_POS, object, "position");
+        gnc_prefs_bind (GNC_PREFS_GROUP, GNC_PREF_PANED_POS, NULL, object, "position");
     }
     g_object_unref (builder);
 }

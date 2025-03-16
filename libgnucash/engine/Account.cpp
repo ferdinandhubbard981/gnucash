@@ -42,6 +42,7 @@
 #include "gnc-glib-utils.h"
 #include "gnc-lot.h"
 #include "gnc-pricedb.h"
+#include "qofevent.h"
 #include "qofinstance-p.h"
 #include "gnc-features.h"
 #include "guid.hpp"
@@ -49,6 +50,7 @@
 #include <numeric>
 #include <map>
 #include <unordered_set>
+#include <algorithm>
 
 static QofLogModule log_module = GNC_MOD_ACCOUNT;
 
@@ -1594,6 +1596,24 @@ xaccAccountDestroy (Account *acc)
     qof_instance_set_destroying(acc, TRUE);
 
     xaccAccountCommitEdit (acc);
+}
+
+void
+xaccAccountDestroyAllTransactions(Account *acc)
+{
+    auto priv = GET_PRIVATE(acc);
+    std::vector<Transaction*> transactions;
+    transactions.reserve(priv->splits.size());
+    std::transform(priv->splits.begin(), priv->splits.end(),
+                   back_inserter(transactions),
+                   [](auto split) { return split->parent; });
+    std::stable_sort(transactions.begin(), transactions.end());
+    transactions.erase(std::unique(transactions.begin(), transactions.end()),
+                       transactions.end());
+    qof_event_suspend();
+    std::for_each(transactions.rbegin(), transactions.rend(),
+                  [](auto trans) { xaccTransDestroy (trans); });
+    qof_event_resume();
 }
 
 /********************************************************************\
@@ -3242,15 +3262,18 @@ xaccAccountGetName (const Account *acc)
     return GET_PRIVATE(acc)->accountName;
 }
 
+std::vector<const Account*>
+gnc_account_get_all_parents (const Account *account)
+{
+    std::vector<const Account*> rv;
+    for (auto a = account; !gnc_account_is_root (a); a = gnc_account_get_parent (a))
+        rv.push_back (a);
+    return rv;
+}
+
 gchar *
 gnc_account_get_full_name(const Account *account)
 {
-    AccountPrivate *priv;
-    const Account *a;
-    char *fullname;
-    const gchar **names;
-    int level;
-
     /* So much for hardening the API. Too many callers to this function don't
      * bother to check if they have a non-nullptr pointer before calling. */
     if (nullptr == account)
@@ -3259,35 +3282,24 @@ gnc_account_get_full_name(const Account *account)
     /* errors */
     g_return_val_if_fail(GNC_IS_ACCOUNT(account), g_strdup(""));
 
-    /* optimizations */
-    priv = GET_PRIVATE(account);
-    if (!priv->parent)
-        return g_strdup("");
+    auto path{gnc_account_get_all_parents (account)};
+    auto seps_size{path.empty() ? 0 : strlen (account_separator) * (path.size() - 1)};
+    auto alloc_size{std::accumulate (path.begin(), path.end(), seps_size,
+                                     [](auto sum, auto acc)
+                                     { return sum + strlen (xaccAccountGetName (acc)); })};
+    auto rv = g_new (char, alloc_size + 1);
+    auto p = rv;
 
-    /* Figure out how much space is needed by counting the nodes up to
-     * the root. */
-    level = 0;
-    for (a = account; a; a = priv->parent)
-    {
-        priv = GET_PRIVATE(a);
-        level++;
-    }
+    std::for_each (path.rbegin(), path.rend(),
+                   [&p, rv](auto a)
+                   {
+                       if (p != rv)
+                           p = stpcpy (p, account_separator);
+                       p = stpcpy (p, xaccAccountGetName (a));
+                   });
+    *p = '\0';
 
-    /* Get all the pointers in the right order. The root node "entry"
-     * becomes the terminating nullptr pointer for the array of strings. */
-    names = (const gchar **)g_malloc(level * sizeof(gchar *));
-    names[--level] = nullptr;
-    for (a = account; level > 0; a = priv->parent)
-    {
-        priv = GET_PRIVATE(a);
-        names[--level] = priv->accountName;
-    }
-
-    /* Build the full name */
-    fullname = g_strjoinv(account_separator, (gchar **)names);
-    g_free(names);
-
-    return fullname;
+    return rv;
 }
 
 const char *
@@ -4014,13 +4026,17 @@ gint64
 xaccAccountGetTaxUSCopyNumber (const Account *acc)
 {
     auto copy_number = get_kvp_int64_path (acc, {"tax-US", "copy-number"});
-    return copy_number ? *copy_number : 1;
+    return (copy_number && (*copy_number != 0)) ? *copy_number : 1;
 }
 
 void
 xaccAccountSetTaxUSCopyNumber (Account *acc, gint64 copy_number)
 {
-    set_kvp_int64_path (acc, {"tax-US", "copy-number"}, copy_number);
+    if (copy_number != 0)
+        set_kvp_int64_path (acc, {"tax-US", "copy-number"}, copy_number);
+    else
+        /* deletes KVP if it exists */
+        set_kvp_int64_path (acc, {"tax-US", "copy-number"}, std::nullopt);
 }
 
 /*********************************************************************\
@@ -4612,7 +4628,7 @@ xaccAccountSetReconcilePostponeBalance (Account *acc, gnc_numeric balance)
 void
 xaccAccountClearReconcilePostpone (Account *acc)
 {
-    set_kvp_gnc_numeric_path (acc, {KEY_RECONCILE_INFO, KEY_POSTPONE, "balance"}, {});
+    set_kvp_gnc_numeric_path (acc, {KEY_RECONCILE_INFO, KEY_POSTPONE}, {});
 }
 
 /********************************************************************\

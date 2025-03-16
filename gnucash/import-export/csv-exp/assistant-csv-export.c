@@ -398,8 +398,7 @@ update_accounts_tree (CsvExportInfo *info)
     num_accounts = gtk_tree_selection_count_selected_rows (selection);
 
     label = info->csva.num_acct_label;
-
-    string = g_strdup_printf ("%d", num_accounts);
+    string = g_strdup_printf (_("Accounts Selected: %d"), num_accounts);
     gtk_label_set_text (GTK_LABEL (label), string);
     g_free (string);
 }
@@ -992,7 +991,7 @@ csv_export_assistant_create (CsvExportInfo *info)
     if (gnc_prefs_get_bool (GNC_PREFS_GROUP_GENERAL, GNC_PREF_SAVE_GEOMETRY))
     {
         GObject *object = gtk_builder_get_object (builder, "paned");
-        gnc_prefs_bind (GNC_PREFS_GROUP, GNC_PREF_PANED_POS, object, "position");
+        gnc_prefs_bind (GNC_PREFS_GROUP, GNC_PREF_PANED_POS, NULL, object, "position");
     }
 
     gtk_builder_connect_signals (builder, info);
